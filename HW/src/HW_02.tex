@@ -1,0 +1,200 @@
+\documentclass[a4paper, 12pt,fleqn]{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+
+%for margins
+\topmargin=-0.45in
+\evensidemargin=0in
+\oddsidemargin=0in
+\textwidth=6.5in
+\textheight=9.0in
+
+%for header and footer
+\pagestyle{fancy}
+\fancyhf{} %clears the header and footer, otherwise the elements of the default "plain" page style will appear.
+\setlength{\headheight}{15pt}
+\lhead{Mark Gameng}
+\chead{CS 440: HW 02}
+\rfoot{\thepage}
+
+\begin{document}
+\section*{Problem 1}
+\textit{f x y z = x : ( [ y ] : [ z ] )} What is the type of \textit{f}?\\
+\textbf{
+$f$ has a type of \textit{[a] $->$ a $->$[a] $->$ [[a]]}. So, the function takes in a list, an element, and another list, which are all of the same type. The function then returns a list of a list of the same type.
+}
+\section*{Problem 2}
+\begin{enumerate}[label=(\alph*)]
+\item The test \textit{False $<$ True} is allowed because $<$ is provided by a typeclass that \textit{Bool} is an instance of. What is the typeclass and what is the type ($<$)(including the typeclass)?\\
+\textbf{
+$<$ has a type of \textit{Ord a $=>$ a $->$ a $->$ Bool}. So, ($<$) takes any two elements of the same type and returns a boolean. The type of those two elements must be of the Ord typeclass. Ord are for types that have an ordering and it also must be of the Eq typeclass(\textit{:info $(<)$} outputs \textit{class Eq a $=>$ Ord a where ... $(<)$ :: a $->$ a $->$ Bool}).
+}
+\item What are the functions that give the \textit{ASCII} code for a character and give the \textit{ASCII} character for an integer(if you use a type notation \textit{:: Char})? (i.e., \textit{fnc1 'a'} yields 97, \textit{fnc2 97:: Char} yields \textit{'a'}.) Also, what are their types(including the typeclass)?\\
+\textbf{
+\textit{fromEnum, toEnum} are functions that give ASCII code for a character and give the ASCII character for an integer respectively. \textit{fromEnum} has a type of \textit{Enum a $=>$ a $->$ Int}. It takes in an element of a type from Enum typeclass and returns an Int. \textit{toEnum} has a type of \\ \textit{Enum a $=>$ Int $->$ a}. It takes in an Int and returns an element of a type from the Enum typeclass.
+}
+\item The functions in part (b) are provided by a typeclass that \textit{Char} is an instance of. What is the typeclass?\\
+\textbf{
+The typeclass is Enum.
+}
+\end{enumerate}
+\section*{Problem 3}
+The function \textit{twice list} should return true iff some values occurs twice in the list. E.g.,
+\begin{center}
+\textit{filter twice [[],[1],[1,2],[2,2],[1,2,3],[1,2,1],[1,1,2],[1,2,2]]}\\
+\textit{[[2,2],[1,2,1],[1,1,2],[1,2,2]]}
+\end{center}
+\begin{enumerate}[label = (\alph*)]
+\item What is the type of \textit{twice}? \\
+\textbf{
+\textit{twice} has a type of \textit{Eq a $=>$ [[a]] $->$ Bool}. It takes in a list of lists and returns a boolean whether or not some values occur twice. The typeclass is Eq.
+}
+\item Briefly describe the syntactic and semantic bugs in the program below. \\
+\textit{
+:\{\\
+twice [] = False\\
+twice [\_] = False\\
+twice [x,x] = False\\
+twice ( \_ ++ [x] ++ \_ ++ [y] ++ \_ ) = x == y\\
+twice (h1 : h2 : t) == (h1 == h2 $||$ twice h1 t)\\
+:\}
+}\\
+\textbf{
+\textit{twice [x,x] = False}, results in an error because \textit{x} was used twice which resulted in conflicting definitions for \textit{x}, because this defines \textit{x} twice.\\
+\textit{twice (\_ ++ [x] ++ \_ ++ [y] ++ \_) = x == y}, results in an error because it uses \textit{++} and the arguments are \textit{\_} and a list. It should instead use \textit{:} and remove the brackets.\\
+\textit{twice (h1 : h2 : t) == (h1 == h2 $||$ twice h1 t)} results in an error because of the \textit{==} and \textit{twice h1 t}  (wrong type). To make it compile, it should instead be \textit{twice (h1 : h2 : t) = (h1 == h2 $||$ twice (h1 : t))}.
+}
+\item Rewrite \textit{twice} to make it work. Keep using definition by cases; feel free to \\add/change/delete cases as you see fit.\\
+\textbf{
+\textit{:\{\\
+twice [] = False\\
+twice [\_] = False\\
+twice [x,y] = x == y\\
+twice (h1 : t) = (h1 `elem` t $||$ twice t)\\
+:\}
+}
+}
+\item Write a definition by cases for \textit{twice} that only has two cases(one recursive, one not).\\
+\textbf{
+\textit{:\{\\
+twice [] = False\\
+twice (h1 : t) = (h1 `elem` t $||$ twice t)\\
+:\}
+}
+}
+\item Rewrite your definition from part (c) using cases and guards; break up the 3-clause logical or test to use a sequence of guards. (Don't leave any $||$ in the definition)
+\begin{align*}
+twice&\ x\ pattern\\
+&|\ guard1 = result1\\
+&|\ guard2 = result2\\
+&(omitted)
+\end{align*}
+\textbf{
+:\{\\
+twice x $|$ length x $<=$ 1 = False ; otherwise = twice (h1 : t) = (h1 `elem` t $||$ twice t)\\
+:\}
+}
+\pagebreak
+\item Rewrite your definition from part (c) to be of the form twice x = case x of .... You can add guards to a case clause using the syntax
+\begin{align*}
+case\ expr\ of\ pattern\ &|\ guard1\ ->\ result1\\
+&|\ guard2 \ ->\ result2\\
+&(omitted)
+\end{align*}
+\textbf{
+\textit{
+:\{\\
+twice x = case length x of\\
+0 $->$ False\\
+1 $->$ False\\
+\_ $->$ let x' = x in twice (x' : xs) = (x' `elem` xs $||$ twice xs)\\
+:\}
+}
+}
+\end{enumerate}
+\section*{Problem 4}
+Consider the following claim: "A Haskell function is higher order if and only if its type has more than one arrow." Is this correct? Give a brief argument.\\
+\textbf{This is true because by definition, a higher order function in haskell either takes another function as a parameter or returns a another function as a result. To do this, the type must have more than one arrow.\\
+For example:\\
+\textit{f\_squared f x = f (f x)} has type of \textit{(t $->$ t) $->$ t $->$ t} which means that it takes in a function as an argument and returns a result. This particular function just applies the function twice. As you can see, it has more than one arrow.
+}
+\section*{Problem 5}
+Let \textit{f :: (a$->$a$->$a)$->$a$->$a$->$a} 
+\begin{enumerate}[label = (\alph*)]
+\item Rewrite \textit{f $*$ (2 3)} so that it has no syntax errors and yield \textit{6} if \textit{f h x y = h x y}\\
+\textbf{
+\textit{f (*) 2 3} which yields 6.
+}
+\item Write the definition of a function \textit{g :: ((a,a)$->$a,(a,a))$->$a} so that \textit{g} is an uncurried version of \textit{f}. Calling your function on $*$, \textit{2}, and \textit{3} should yield \textit{6}.\\
+\textbf{
+\textit{g (h, (x,y)) = h (x,y)} has a type of \textit{((a,a) $->$ a, (a,a)) $->$ a} but you have to call the function with \textit{uncurry (*), (2,3)} such that \textit{g(uncurry (*), (2,3))} yields 6.\\
+If you want to just call the function with \textit{*,2,3}, you can do\\ \textit{g (h, (x,y)) = h x y} which yields 6 if you call it with just \textit{(*), (2,3)}, however it no longer is the same type as specified in the problem description.
+}
+\end{enumerate}
+\section*{Problem 6}
+Let \textit{f1 = filter (\textbackslash x $->$ x $>$0)} and \textit{f2 = filter (\textbackslash x $->$ x $<$ 0)}, and let \\\textit{nbrFilter g x = length (filter g x)}.
+\begin{enumerate}[label = (\alph*)]
+\item Rewrite \textit{f1 (f2 [-5..15])} so that it uses function composition to apply just one function to the list.\\
+\textbf{
+\textit{(f1 . f2) [-5..15]}. The infix dot combines the two functions together to one function. So, it only applies one function to the list rather than two.
+}
+\item Rewrite the \textit{nbrFilter} function definition to have the form:\\
+\textit{nbrFilter g =} function composition involving \textit{length} and \textit{filter} ... and leaving out \textit{x}.\\
+\textbf{
+\textit{nbrFilter g = length.(filter g)}
+}
+\end{enumerate}
+\section*{Problem 7}
+\begin{enumerate}[label = (\alph*)]
+\item Rewrite \textit{f g x y = g x (y x)} three ways, first \textit{f g x =} unnamed lambda function, then \textit{f g =} unnamed lambda function, and finally \textit{f =} unnamed lambda function.\\
+\textbf{
+\textit{f g x = \textbackslash y $->$ g x (y x)\\
+f g = \textbackslash x y $->$ g x (y x)\\
+f = \textbackslash g x y $->$ g x (y x)
+}
+}
+\item Briefly, how does \textit{var = lambda function} relate to first-class function in Haskell?\\
+\textbf{
+That is one way Haskell supports first-class functions. First-class functions means functions are treated like any variable. You can use functions as expressions and can have variables whose values are functions. For example, \textit{var = lambda function}
+}
+\end{enumerate}
+\section*{Problem 8}
+Let's re-implement the \textit{foldl} function in multiple ways. Your \textit{foldl} only needs to work on lists.
+\begin{enumerate}[label = (\alph*)]
+\item Write a definition for \textit{foldl} using conditional expressions:\\ \textit{foldl1a f a x = if x == []} then etc.\\
+\textbf{
+\textit{
+:\{\\
+foldl1a f a x = let len = length x in\\
+if len == 0 then a\\
+else if len == 1 then (f) a (head x)\\
+else foldl1a f a (h:t) = let temp = (f) a h in foldl1a f temp t\\
+:\}
+}
+}
+\pagebreak
+\item Rewrite the definition using function definition by cases: \textit{foldl2...}\\
+\textbf{
+\textit{
+:\{\\
+foldl2 f a [] = a\\
+foldl2 f a (h:t) = let temp = (f) a h in foldl2 f temp t\\
+:\}
+}
+}
+\item Rewrite the definition using a case expression: \textit{foldl3 f a x = case x ...}\\
+\textbf{
+\textit{
+foldl3 f a x = case length x of\\
+0 $->$ a\\
+1 $->$ (f) a (head x)\\
+\_ $->$ let x' = init(reverse x)\\
+let temp = (f) a (head x)\\
+in foldl3 f temp x'
+}
+}
+\end{enumerate}
+\end{document}
