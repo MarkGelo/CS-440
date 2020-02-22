@@ -1,6 +1,5 @@
 -- CS 440 -- Lexical scanner
 -- Spring 2020, HW 5
--- (skeleton)
 --
 -- The scanner matches regular expressions against some input and
 -- returns a list of the captured tokens (and leftover input).
@@ -26,16 +25,27 @@ scan input = case scan' scan_rexps [] input of
 -- tokens found so far.  Exception: We don't add a Space token.
 --
 scan' _ revtokens []  = Just (reverse revtokens, [])
+scan' (rexps:another) revtokens input = Nothing
 -- *** STUB ***
+{--
+INPUT = "abc def 13 %"
+scan' regexp [] input = recursively use scan_rexps
+                      =  (head:scan_rexps) -> identifier=exp, Id= type      capture identifer input             [id abc] " def 13 %"
+                      = (head: scan_rexps) -> operatore    ....                     operator input              [Id abc] " def 13 %"
+                      =                                                                                         [Id abc, Id def] "13 %"
+                      =                                                                                         [Id abc, Id def, Const 13]
+                      =                                                                                         [Id abc, Id def, Const 13, Punct %]                
 
+-}
 -- scan_rexps are the regexprs to use to break up the input.  The format of each
 -- pair is (regexpr, fcn); if capture regexpr produces a string str, apply the function
 -- to it to get a token.  scan_rexps is an infinite cycle of the regular expressions
 -- the scanner is looking for
 --
 scan_rexps = cycle
-   [ -- *** STUB *** (num_const, ???), -- You need to write the tokenizer function.
-    (identifier, Id), (operators, Op), (punctuation, Punct), (spaces, \_ -> Space) ]
+   [ -- *** STUB *** (num_const, ???), -- You need to write the tokenizer function
+    (num_const, \x-> Const (read x)),
+    (identifier, Id), (operators, Op), (punctuation, Punct), (spaces, \_ -> Space)]
 
 num_const       = RE_and [digit1_9, RE_star digit]
 digit1_9        = RE_in_set "123456789"
@@ -44,7 +54,8 @@ operators       = RE_in_set "+-*/"
 punctuation     = RE_in_set "[](){},;:.?!&#$%"
 
 -- *** STUB *** need identifier, spaces
-
+identifier      = RE_in_set "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+spaces          = RE_in_set " " -- HMMMM
 
 -- Regular expressions
 data RegExpr a
@@ -73,7 +84,7 @@ capture  :: Eq a => RegExpr a -> RE_Input a -> Maybe(RE_Token a, RE_Input a)
 --
 capture rexp input = case capture' rexp ([], input) of
     Nothing -> Nothing
-    Just (revtoken, input') -> Just (reverse revtoken, input')
+    Just (revtoken, input') -> Just (revtoken, input')
 
 
 -- capture' rexp (partial_token input) matches the expression against
@@ -86,5 +97,39 @@ capture' :: Eq a => RegExpr a -> (RE_RevToken a, RE_Input a) -> Maybe(RE_RevToke
 -- *** STUB *** add code for RE_const, RE_or, RE_and, RE_in_set, RE_star, RE_empty
 -- *** and for any other kinds of regular expressions you need.
 --
-capture' _ _ = Nothing  -- *** STUB ***
 
+capture' RE_empty (revtoken, input)  = Just(revtoken, input)
+
+capture' (RE_in_set []) (revtoken, input) = Nothing
+capture' (RE_in_set symbols) (revtoken, head:input')
+  | head `elem` symbols = case input' of
+      [] -> Just (revtoken ++ [head], [])
+      _ -> capture' (RE_in_set symbols) (revtoken ++ [head], input')
+  | otherwise = Just (revtoken, head:input')
+
+capture' (RE_star RE_empty) _ = Nothing
+capture' (re_star @ (RE_star rexp)) input = Just input --capture' (RE_or [RE_and [rexp, re_star], RE_empty]) input
+    {--
+    case capture' (RE_or [RE_and [symbols, RE_star symbols], RE_empty]) (revtoken, input) of
+        Nothing -> Nothing
+        ok @ (Just _) -> ok
+        -}
+-- go look at the hw 04 shit, regxp* is (regxp regxp* | empty)
+-- first regxp can be empty as well
+
+capture' (RE_const _) (_, []) = Nothing
+capture' (RE_const symbol) (revtoken, head_inp : input')
+  | head_inp == symbol = Just (revtoken ++ [head_inp], input')
+  | otherwise = Nothing
+
+capture' (RE_or []) _ = Nothing
+capture' (RE_or (rexp : regexprs')) (revtoken, input) =
+    case capture' rexp (revtoken, input) of
+      Nothing -> capture' (RE_or regexprs') (revtoken, input)
+      ok @ (Just _) -> ok
+
+capture' (RE_and []) (revtoken, input) = Just (revtoken, input)
+capture' (RE_and (rexp : regexprs)) (revtoken, input) =
+  case capture' rexp (revtoken, input) of
+    Nothing -> Nothing
+    ok @ (Just input') -> capture' (RE_and regexprs) input'
