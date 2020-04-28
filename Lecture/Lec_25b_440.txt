@@ -1,0 +1,91 @@
+Bit of Chapter 11 LPN - The Cut
+
+The cut, written !, is a tool to prevent backtracking when trying to re-prove something.  Using them can make a program more procedural (order of proof attempts makes more of a difference).
+
+There are two kinds of cut; both of them make programs more efficient but they differ in how they change the answers the programs produce.
+
+A "green" cut doesn't affect a program's solutions: Repeated reproofs find the same set of values whether the cut is or isn't there, but the version with the cut is faster.
+
+Example: The has_path(X,Y) predicate returns true if there's a path from X to Y and fails otherwise.  If all you're interested in is "Exists there a path...?" then once has_path(X,Y) succeeds, it's pointless to ask for another proof.  In that case, you could use a green cut after the first success to avoid looking for more proofs.
+
+(On the other hand, if you're interested in "How many paths are there ...?" then you'd ask for more proofs and count the number of successes.)
+
+% Without cut:
+
+% Has path: either through a direct link or by finding a link to an
+% intermediary node that has a path to the target.
+%
+link(1,2).  link(2,3).  link(1,3).
+has_path(X,Y) :- link(X,Y).
+has_path(X,Y) :- link(X,Z), has_path(Z,Y).
+
+has_path(1,3) succeeds twice, then fails (on third press of Next)
+
+The behavior of a cut is: It succeeds if you want to go through it left to right (looking for a proof).  It fails if you try going through it right to left (backtracking to look for a different proof).
+
+% With cut
+has_path(X,Y) :- link(X,Y), !.
+has_path(X,Y) :- link(X,Z), has_path(Z,Y), !.
+
+has_path(1,3) succeeds once and stops (doesn't ask Next?)
+
+(A cut at the very end of a rule might be green.)
+
+A "red" cut does affect a program's solutions when you add it in (or possibly when you take it out).
+
+Example of Red cut 
+Section 10.2 of LPN has a nice example of a red cut and why you might want one.
+
+(It's a little different from the one in the text.)
+
+Original program:
+max(X, Y, Max) :- X =< Y, Max = Y.
+max(X, Y, Max) :- X > Y, Max = X.
+
+Query
+max(2, 3, M).
+Succeeds with M = 3.  Pressing Next yields false.
+
+Even if there was a different way to prove max(2, 3, Z), it would be pointless in the sense that it'll just find the same Z.
+
+Green cut version:
+maxg(X, Y, Max) :- X =< Y, !, Max = Y.
+maxg(X, Y, Max) :- X > Y, !, Max = X.
+
+Once it succeeds proving max(2, 3, Z) with Z = 3, it stops without offering Next.
+
+Red cut version:
+maxr(X, Y, Max) :- X =< Y, !, Max = Y.
+maxr(X, Y, X).
+
+The red cut version hits the cut once we know Y ≥ X, and it sets (or verifies) Max = Y.
+The second rule doesn't need to test for X > Y because that's the only way we can get to it. 
+
+This cut is red because removing it makes the program buggy.
+maxr(X, Y, Max) :- X =< Y, !, Max = Y.
+maxr(X, Y, X).
+
+--------------------------------------------------------------------------------
+Check for overlap
+
+% The red cut version hits the cut once we know
+% Y ≥ X, and it sets (or verifies) Max = Y.
+% The second rule doesn't need to test for X > Y
+% because that's the only way we can get to it. 
+
+% This cut is red because removing makes the program buggy.
+maxr(X, Y, Max) :- X =< Y, !, Max = Y.
+maxr(X, _, X).
+
+% Buggy version:
+maxr_no_cut(X, Y, Max) :- X =< Y, Max = Y.
+maxr_no_cut(X, _, X).
+
+% Without the cut, maxr(2,3,2) looks at the first rule,
+% finds that 2 =< 3, 2 = 3 is false.  So it goes to
+% the second rule, which tries max(2,3,2) matches X = 2
+% and succeeds.
+
+% Problem is that rule 1 succeeds iff X ≤ Y and Max
+% is or can be set to Y, so we go to rule 2 if X > Y
+% or if Max ≠ Y.  So maxr_no_cut(2,3,2) is true.

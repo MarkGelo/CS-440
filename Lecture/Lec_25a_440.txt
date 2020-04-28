@@ -1,0 +1,154 @@
+% CS 440, Spring 2020
+%
+% Chapter 7 Definite Clause Grammars
+% Learn Prolog Now
+% http://www.learnprolognow.org/
+
+% 
+% Representing context-free grammars in Prolog
+% 
+
+sentence -> noun_phrase verb noun_phrase
+noun_phrase -> determiner noun
+determiner -> a | the
+noun -> cat| dog
+verb -> sees | chases
+
+e.g., [the,dog,chases,the,cat]
+
+% Prolog - encode as relations/properties
+% Nonterminal -> word is easy
+%
+det([the]).
+det([a]).
+noun([dog]).
+noun([cat]).
+verb([sees]).
+verb([chases]).
+
+% More complicated case: NT -> NT1 NT2.  We parse the
+% info for NT1 and for NT2 separately and then append
+% them together to get the info for lhs NT.
+%
+noun_ph(X) :- det(D), noun(N), append(D, N, X).
+
+% (We need two append calls to append 3 things together.)
+%
+sentence(X) :- noun_ph(Subj), verb(V), noun_ph(Obj),
+	append(Subj, V, X1), append(X1, Obj, X).
+	
+% tests
+sentence([the,dog,sees,the,cat]).
+
+% produce X = dog or cat (ask for multiple proofs)
+%
+sentence([the,dog,sees,the,X]).
+
+% --------------------------------------------------
+Difference Lists:
+
+Append(X,Y,Z) succeeds if appending X and Y yields Z.
+If X and Y are given, it takes time O(length X) to calculate Z.
+
+Using haskell's ++ notation for append, ((X ++ Y) ++ Z) takes
+time proportional to (2*len X + len Y), but (X ++ (Y ++ Z)) takes
+time proportional to (len X + len Y), so unless nested appends are
+carefully ordered, total append time can be costly.
+
+To reduce the amount of appending, we can use a scheme similar
+to what we used with recursive descent parsers by breaking off
+the unused part of an input so we can pass it on to the next parser.
+
+For prolog, we'll have the input (including the leftover) and
+the leftover as the two parameters.  So instead of saying [the]
+is a determiner, we'll say that the prefix [the] of [the,dog,sees,the,cat]
+is a determiner, and [dog,sees,the,cat] is remaining leftover.
+
+E.g.,
+	det([the,dog,sees,the,cat], [dog,sees,the,cat]),
+	noun([dog,sees,the,cat], [sees,the,cat]),
+	verb([sees,the,cat], [the,cat]),
+	and so on.
+
+In general Nonterminal(Input, Leftover) will be true if there's
+some Prefix such that (1) Nonterminal generates Prefix and
+(2) Input = Prefix ++ Leftover (in Haskell notation).
+For a single symbol we can use [symbol|Leftover].  For a sequence
+of parses, we chain the leftover parts together
+
+Individual words are simple - we just need the head of the list.
+
+det([the|X],X).
+det([a|X],X).
+noun([dog|X],X).
+noun([cat|X],X).
+verb([sees|X],X).
+verb([chases|X],X).
+
+For a list of nonterminals, we pass the leftover of the first 
+nonterminal to be the input of the second and so on.
+
+noun_ph(NP,X2) :- det(NP, X1), noun(X1,X2).
+
+E.g., NP = [the,dog,sees,the,cat], X1=[dog,sees,the,cat], and
+X2=[sees,the,cat].
+
+sentence(S,Left) :- noun_ph(S,X1), verb(X1,X2), noun_ph(X2,Left).
+
+% tests
+% is true
+sentence([the,dog,chases,the,cat],[]).
+
+% produces nouns
+sentence([the,dog,chases,the,N],[]).
+
+% --------------------------------------------------
+
+Definite Clause Grammar
+
+Definite clause grammars are a syntactic extension within prolog.
+instead of writing
+
+	det([the|X],X).
+
+we write
+
+	det --> [the].
+
+(Note hyphen hyphen greater than.)
+
+Note det works exactly as it did before:
+	det[the,dog,sees,the,cat], [dog,sees,the,cat]) succeeds
+
+Instead of 
+	sentence(S,Left) :- noun_ph(S,X1), verb(X1,X2), noun_ph(X2,Left).
+we write
+	sentence --> noun_ph, verb, noun_ph.
+
+The query still succeeds and is still written as
+	sentence([the,dog,chases,the,cat], []).
+
+% program:
+det --> [the].
+det --> [a].
+noun --> [dog].
+noun --> [cat].
+verb --> [sees].
+verb --> [chases].
+noun_ph --> det, noun.
+sentence --> noun_ph, verb, noun_ph.
+
+% Recursive sentences
+% To handle recursive sentences, we need to be certain about
+% having a base case before going to a recursive case.
+
+% Example: Use conjunctions to form complex sentences.
+
+conj --> [and].
+conj --> [or].
+
+complex --> sentence.
+complex --> sentence, conj, complex.
+
+Allows e.g.
+	[the,dog,chases,the,cat,and,the,cat,chases,the,dog]

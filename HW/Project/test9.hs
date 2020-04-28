@@ -41,7 +41,7 @@ unify1 problems =
         problemArr = fst problems -- get Problem
         sub = snd problems -- get Substitution
         --problems1 = checkEquality problemArr -- reduces if already ahve equality in equations
-    if (Id "Const/Id", Id "Error") `elem` sub || (Id "Func", Id "Error") `elem` sub then Just (problemArr, sub)
+    if (Id "Const/Id", Id "Error") `elem` sub || (Id "Func", Id "Error") `elem` sub || (Id "Exp", Id "Error") `elem` sub then Just (problemArr, sub)
     else (if length problemArr > 0 then unify2(problemArr, sub) else Just (problemArr, sub))
 
 unify2 :: (Problem, [Substitution]) -> Maybe (Problem, [Substitution])
@@ -57,11 +57,13 @@ unify2 problems =
             (let 
                 x = if isVar leftSide then leftSide else rightSide
                 s = if x == leftSide then rightSide else leftSide
-            in if isVar s && x == s then unify1 (drop 1 p', sub) else unify1 (substituteAll p' (x,s), (substituteAllSub sub (x,s)) ++ [(x, s)]))
+            in if isVar s && x == s then unify1 (drop 1 p', sub) else unify1 (checkEquality (substituteAll p' (x,s)), (substituteAllSub sub (x,s)) ++ [(x, s)]))
             else 
                 (if isId leftSide then (if leftSide == rightSide then unify1 (drop 1 p', sub) else unify1 (p', sub ++ [(Id "Const/Id", Id "Error")]))
-                else (if isFunc leftSide && isFunc rightSide && getFuncN leftSide == getFuncN rightSide && length (getFuncA leftSide) == length (getFuncA rightSide)
-                    then unify1 ((drop 1 p') ++ zip (getFuncA leftSide) (getFuncA rightSide), sub) else Just (p', sub ++ [(Id "Func", Id "Error")])))
+                else (if isFunc leftSide
+                    then (if isFunc rightSide && getFuncN leftSide == getFuncN rightSide && length (getFuncA leftSide) == length (getFuncA rightSide)
+                        then unify1 ((drop 1 p') ++ zip (getFuncA leftSide) (getFuncA rightSide), sub) else Just (p', sub ++ [(Id "Func", Id "Error")]))
+                        else Just (p', sub ++ [(Id "Exp", Id "Error")])))
 
 --substitute function - takes in an equation and applies a substitution
 --ex substitute (X = 3) (X -> 3)

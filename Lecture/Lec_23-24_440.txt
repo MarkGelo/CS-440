@@ -1,0 +1,173 @@
+% CS 440, Spring 2020
+%
+% Chapters 3 - 6 of Learn Prolog Now
+% http://www.learnprolognow.org/
+% 
+% Represent context-free grammar in Prolog
+% 
+
+Chapter 3 Recursion
+
+Recursion
+3.1 Recursive definitions
+read Examples 1 (Eating), 2 (Descendant)
+skip 3 & 4
+
+3.2 Rule Ordering, Goal Ordering, and Termination
+read
+
+3.3 Exercises 
+Ex 3.1 (Bad recursion - why?)
+Ex 3.3 (train routes) - we did as directed graph paths
+skip 3.2, 3.4, 3.5
+
+3.4 Practical Session
+We did similar example on dag paths but as part of lists:
+
+% Basic data: individual connections
+
+link(1,2).
+link(3,4).
+link(5,6).
+link(7,8).
+link(9,10).
+link(12,13).
+link(13,14).
+link(15,16).
+link(17,18).
+link(19,20).
+link(4,1).
+link(6,3).
+link(4,7).
+link(6,11).
+link(14,9).
+link(11,15).
+link(16,12).
+link(14,17).
+link(16,19).
+
+% has_path(X,Y): Is there a path of links from X to Y?
+has_path(X,Y) :- link(X,Y).
+has_path(X,Y) :- link(X,Z), X \= Z, has_path(Z,Y).
+
+% E.g. path(1,10) asks if there's a path from 1 to 10
+% path(1,Target) asks what paths start with 1
+% path(Source, 10) asks what starting points have paths to 10
+
+% path(Start,End,L): Is L a list of the nodes along a path from Start to End?
+%
+path(Start,End,[Start,End]) :- link(Start,End).
+path(Start,End,[Start,Neighbor|Neighbor_to_End]) :- link(Start,Neighbor), path(Neighbor,End,[Neighbor|Neighbor_to_End]).
+
+    path(5,20,[5,6,11,15,16,19,20])
+    true
+
+
+new
+has_path(Start,End) :- link(Start,End).
+has_path(Start,End) :- link(Start,Neighbor), Start \= Neighbor,
+    has_path(Neighbor,End).
+
+% path(Start,End,L): Is L a list of the nodes along a path from Start to End?
+%
+path(Start,End,[Start,End]) :- link(Start,End).
+path(Start,End,[Start|[Neighbor|Neighbor_to_End]])
+:- link(Start,Neighbor),
+    path(Neighbor,End,[Neighbor|Neighbor_to_End]).
+
+Notes: 
+	Use has_path(1,Dest) to look for all destinations you can get to from 1.
+	Use has_path(Start,3) to look for all starting places that can get to 3.
+	path(1,Dest,P) looks for destinations and the path for each one.
+	path(Start,3,P) is similard
+
+----------------------------------------
+Chapter 4 Lists
+4.1 Lists
+Read. basic syntax [1,2,3,4], [1|[2,3,4]], [1,2|[3,4]] are equal,
+[] is empty list
+_ - anonymous variable: matches anything but doesn't do an actual binding.
+Multiple uses of _ aren't the same: [_, _] matches [1,2]
+Compare with [X,X], which doesn't match [1,2].
+
+4.2 Member
+Member of list: base case, recursive case
+member(X, [X|_]).
+member(X, [_,T]) :- member(X, T).
+
+4.3 Recursing down Lists
+Simple examples (just skim)
+
+4.4 Exercises
+Exercises 4.1 and 4.2 (basic lists: equality, syntax)
+Skip Ex 4.3 - 4.7
+
+4.5 Practical Session
+Skip
+
+----------------------------------------
+Chapter 5 Arithmetic
+
+5.1 Arithmetic in Prolog
+Easy - read quckly
+
+5.2 A Closer Look
+X is 2+2.
+	Evaluates 2+2, binds X to 4, and succeeds.
+X is 4.
+	Also sets X to 4.
+
+4 is X.
+	Fails -- it wants rhs of is to be instantiated (no unbound variables).
+
+4 is 2+2.
+	Evalutes 2+2 and succeeds
+
+X = 2+2, 4 is X.
+	X is bound to term 2+2, which gets evaluated to 4, so success
+
+2+2 is 4.
+	Fails - lhs of is should be a number (literal or value of variable)
+
+X is 2+2, 4 is X.
+	Succeeds because X is instantiated to 4.
+
+5.3 Arithmetic and Lists
+Length of list:
+	len([], 0).
+	len([_|T], N) :- len(T, Np1), Np1 is N+1.
+
+-> Subtle but useful point: We don't want a recursive case of
+	len([_|T], N+1) :- len(T, N).
+because N+1 is a term, not a number.
+I.e., len([1,2], Two). succeeds and sets Two to the term 0+1+1, not the number 2.
+
+Skip accLen and tail recursion (nice stuff, but skip for time's sake)
+
+5.4 Comparing Integers
+Operators <, =< (is ≤), >, and >= evaluate both sides and compare
+(as you would think).  E.g. 2+2 =< 4+1 succeeds
+
+To get equality and inequality where both sides evaluate and then
+compare, use =:= and =\=.  E.g., 2+2 =:= 3+1 succeeds.
+Compare with = and \=, which don't evaluate the two sides.
+[typo fixed 4/27: it's \=, not /=]
+E.g., 2+2 = 3+1 fails because they're not the same term.
+Basically, exp1 =:= exp2 is like X is exp1, Y is exp2, X = Y.
+
+5.5 Exercises
+Ex 5.1 (Simple arithmetic and comparisons)
+Skip Ex 5.2, 5.3
+
+5.6 Practical Session 
+Skip
+
+----------------------------------------
+6 More Lists
+Read 6.1 Append
+Note append([1,2],[3,4],X), append([1,2],Y,[1,2,3,4]), append(Z,[3,4],[1,2,3,4])
+succeed and set X = [1,2,3,4], Y = [3,4], and Z = [1,2].
+
+Skip 6.2 Reversing a List and 6.3 Exercises
+
+----------------------------------------
