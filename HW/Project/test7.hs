@@ -1,21 +1,22 @@
--- CS 440 Spring 2020 Homework 6
--- (Skeleton with solution commented out)
---
--- Recursive descent parser using bind/fails.
--- Includes function calls f(x), f(x,x) [one or more arguments]
---
-
--- module <fill in> where
 import Data.Char
 import Data.List
+import Control.Monad (mfilter)
+
+p1 = "{X=Y,Y=3}" --Y=3,X=3
+p2 = "{X=1,X=3}" --fails tries to unify 1 and 3
+p3 = "{f(a,Y)=f(X,b),c=Z}" --Z=c,Y=b,X=a
+p4 = "{f(X)=g(Y)}" --fails different function names
+p5 = "{f(X,Y)=f(X)}" --fails, different # of args
 
 -- Language
 --
+--Problem ... {Equations}
+-- ....
 -- Expr   -> Term \+ Ttail
 -- Ttail  -> \+ Term Ttail | empty
 -- Term   -> Factor Ftail
 -- Ftail  -> \* Factor Ftail | empty
--- Factor -> Id_or_Call | Paren | Negative
+-- Factor -> Id_or_Call | Paren | Negative | Constant
 -- Paren  -> \( Expr \)
 -- Negative -> \- Factor
 --
@@ -25,15 +26,128 @@ import Data.List
 
 -- The parse tree structure follows the grammar structure
 --
+type Equation = (Ptree, Ptree) -- expr = expr
+type Problem = [Equation] -- so can have multiple equations
+type Substitution = (Ptree, Ptree) -- Var -> ...
+
+unify :: Problem -> Maybe (Problem, [Substitution])
+unify problem = unify1 (problem, [])
+
+unify1 :: (Problem, [Substitution]) -> Maybe (Problem, [Substitution])
+unify1 problems = 
+    do
+    let 
+        problemArr = fst problems -- get Problem
+        sub = snd problems -- get Substitution
+        --problems1 = checkEquality problemArr -- reduces if already ahve equality in equations
+    if (Id "Error", Id "Error") `elem` sub then Just (problemArr, sub)
+    else (if length problemArr > 0 then unify2(problemArr, sub) else Just (problemArr, sub))
+
+unify2 :: (Problem, [Substitution]) -> Maybe (Problem, [Substitution])
+unify2 problems =
+    do
+        let
+            p' = fst problems
+            sub = snd problems
+            equation = p' !! 0
+            leftSide = fst equation
+            rightSide = snd equation
+        if isVar leftSide || isVar rightSide then
+            (let 
+                x = if isVar leftSide then leftSide else rightSide
+                s = if x == leftSide then rightSide else leftSide
+            in if isVar s && x == s then unify1 (drop 1 p', sub) else unify1 (substituteAll p' (x,s), sub ++ [(x, s)]))
+            else 
+                (if isId leftSide then (if leftSide == rightSide then unify1 (drop 1 p', sub) else unify1 (p', sub ++ [(Id "Error", Id "Error")]))
+                else (if isFunc leftSide then Just problems else Just problems))
+--substitute function - takes in an equation and applies a substitution
+--ex substitute (X = 3) (X -> 3)
+--returns 3 = 3
+substitute :: Equation -> Substitution -> Equation
+substitute equation sub =
+    do
+        let
+            subVar = fst sub
+            subChange = snd sub
+            eqLeft = fst equation
+            eqRight = snd equation
+            newLeft = if eqLeft == subVar then subChange else eqLeft
+            newRight = if eqRight == subVar then subChange else eqRight
+        (newLeft, newRight)
+
+--substitutes all equations in the problem
+substituteAll :: Problem -> Substitution -> Problem
+substituteAll problem sub = map (\x -> substitute x sub) problem
+
+unParse :: (Problem, [Char]) -> Maybe (Problem, [Char])
+unParse ([], text) = Just ([], text)
+unParse thing =
+    do
+        let
+            problem = fst thing
+            text = snd thing
+        Just (problem, text)
+
+getStrings :: Ptree -> [Char]
+getStrings (Var out) = out
+getStrings (Id out) = out
+--getStrings (Call out tree) = map getStrings tree
+getStrings _ = ""
+
+-- for checking equality between equations
+-- for example X = 3, Y = Y, 3 = 3
+--returns X = 3
+checkEquality :: Problem -> Problem
+checkEquality = filter (\(leftSide, rightSide) -> leftSide /= rightSide)
+
+
+-- cant do this shit unify1 (problemListmin1, sub ++ [(es1, exp1)])
+--need to update orig problem array with updated substitution shit on all elements
+
+--GO DO THE ALGORITHM WITH 2 EQUATIONS -- ONCE IT RETURNS A SUBSTITUTION, UPDATE THE EQUATIONS AND REDUCE IF POSSIBLE - THINK ONLY FOR FIRST PART
+--WHAT IF IN THE SECOND PART WHERE IT ITERATES OVER THE ELEMENTS- SHOULD I UPDATE AECH TIME IT FINDS A SUBSTITION? I THINK SO
+--BUT WHEN ONLY LEFT TO 1 EQUATION ,CALL ANOTHER METHOD THAT HANDLES THAT
+
+--MAYBE WHEN FINDS A SUBSTITUTE, CALL THE SUBSTITUTE METHOD WHICH RETURNS THE SUBSTIUTION RESULT WHAT??????????
+
+--WHEN IT FIND A SUBSTITUTION, SUBTITUTE IT TO THE PROBLEM AND THEN CALL A FUNCTION THAT CHECKS EACH EQUATION AND IF IT CAN BE TAKEN OUT, THE NCALL UNIFY ON THOSE PROBLEM
+
+--AT FIRST CHECK EACH EQUATION FOR EQUALITY TO TAKE OUT ALREADY SOLVED EQUATIONS, THEN CHECK EACH EQUATION
+--IF IT CAN BE SUBSTITUTED AND SOLVED ALREADY INDIVIDUALLY - LIKE IF X = 3, THAT CAN BE SOLVED ALREADY WITH X -> 3
+--THEN AFTER CHECKS ALL THAT, USE UNIFY FUNCTION FOR 2 EQUATIONS AND SOLVE FROM THERE. HMMMMMMMMMMM
+test :: (Ptree, Ptree) -> Bool
+test _ = False
+
+isVar :: Ptree -> Bool
+isVar (Var _) = True
+isVar _ = False
+
+isId :: Ptree -> Bool
+isId (Id _) = True
+isId _ = False
+
+isFunc :: Ptree -> Bool
+isFunc (Call string _) = True
+isFunc _ = False
+
+parse :: String -> Problem
+parse input = case parse_problem input of
+    Just (parsing, "", eqs) -> eqs
+    _ -> []
+
 data Ptree =
     Empty                           -- The empty parse tree
     | Id String                     -- Identifiers
+    | Var String                    -- variables that can be changed -- capitalized
     | Call String [Ptree]           -- Function call, list of arguments
     | Exp Ptree Ptree               -- For Term/Term_tail
     | Term Ptree Ptree              -- For Factor/Factor_Tail
     | Ttail Symbol Ptree Ptree      -- for Symbol Term Ttail
     | Ftail Symbol Ptree Ptree      -- Symbol Factor Ftail
     | Negative Ptree                -- For - factor
+    | Equation Ptree Symbol Ptree   -- For expr = expr
+    | Problem Ptree Ptree
+    | Const Int                     --constant
     deriving (Eq, Show, Read)
 
 --
@@ -50,15 +164,51 @@ lparen = '(' :: Symbol
 minus  = '-' :: Symbol
 plus   = '+' :: Symbol
 rparen = ')' :: Symbol
-star   = '*' :: Symbol 
+star   = '*' :: Symbol
+lbracket = '{' :: Symbol
+rbracket = '}' :: Symbol
+equal = '=' :: Symbol
 
 -- A generic parser returns Maybe a value and leftover input.
 -- Most of the parsers are of type Parser Ptree.
 --
 type Parser t = Input -> Maybe (t, Input)
 
-
 ---------- PARSERS --------------------------------------------------
+--Problem -> {Equations}
+--Equations -> Equation EquationTail
+--EquationTail -> \, Equations | Empty
+--Equation -> Expr = Expr
+
+type Parser1 t = Input -> Maybe(t,Input,Problem)
+
+parse_problem :: Parser1 Ptree
+parse_problem input =
+    next_symbol lbracket input          `bind` (\ (_, input1) ->
+    parse_equations input1              `bind` (\ (equations, input2,arr1) ->
+    next_symbol rbracket input2         `bind` (\ (_, input3) ->
+    Just (equations, input3,arr1))))
+
+parse_equations :: Parser1 Ptree
+parse_equations input = 
+    parse_equation input            `bind` (\ (equation, input1, arr1) ->
+    parse_equationTail input1       `bind` (\ (equationTail, input2,arr2) ->
+    Just (Problem equation equationTail, input2, arr1 ++ arr2)))
+
+parse_equationTail :: Parser1 Ptree
+parse_equationTail input =
+    next_symbol comma input             `bind` (\ (_, input1) ->
+    parse_equations input1              `bind` (\ (equations, input2,arr2) ->
+    Just (equations, input2,arr2)))
+                                        `fails` (\() ->
+    Just(Empty, dropSpaces input,[]))
+
+parse_equation :: Parser1 Ptree
+parse_equation input =
+    parse_E input               `bind` (\ (expr, input1) ->
+    next_symbol equal input1    `bind` (\ (equals, input2) ->
+    parse_E input2              `bind` (\ (expr1, input3) ->
+    Just (Equation expr equals expr1,input3,[(expr, expr1)]))))
 --
 -- For an expression, we look for a term and term_tail. If
 -- the term tail is empty, we just return the underlying
@@ -104,7 +254,7 @@ parse_Ttail input =
 -- A factor is an identifier or parenthesized expression or
 -- a negative factor.
 --
--- Grammar rule: F -> id | ( E )
+-- Grammar rule: F -> id | ( E ) | Negative
 --
 parse_F :: Parser Ptree
 parse_F input =
@@ -135,10 +285,15 @@ parse_Ftail input =
 parse_id_or_call :: Parser Ptree
 parse_id_or_call input =
     getId (dropSpaces input)        `bind`  (\ (idstring, input1) ->
-        parse_arguments input1      `bind`  (\ (argtail, input2) ->
-        Just (Call idstring argtail, input2) )
+    parse_arguments input1          `bind`  (\ (argtail, input2) ->
+    Just (Call idstring argtail, input2) )
                                     `fails` (\ () ->
-        Just (Id idstring, input1) ))
+    Just (Id idstring, input1) ))   `fails` (\ () ->
+    getVar (dropSpaces input)       `bind` (\ (varString, input3) ->
+    parse_arguments input3          `bind` (\ (argtail1, input4) ->
+    Just (Call varString argtail1, input4))
+                                    `fails` (\() ->
+    Just (Var varString, input3))))
 
 
 -- A set of function arguments is a parenthesized, comma-separated
@@ -250,7 +405,16 @@ make_tail build ptree tailtree =
 getId :: Parser String
 getId [] = Nothing
 getId (h:input1)
-    | isLetter h =
+    | (isLetter h && isLower h) || isDigit h =
+        let (idtail, input2) = span (\c -> isAlphaNum c || c == '_') input1
+        in Just (h:idtail, input2)
+    | otherwise = Nothing
+
+--similar to getId but getVar
+getVar :: Parser String
+getVar [] = Nothing
+getVar (h:input1)
+    | isLetter h && isUpper h =
         let (idtail, input2) = span (\c -> isAlphaNum c || c == '_') input1
         in Just (h:idtail, input2)
     | otherwise = Nothing

@@ -1,21 +1,51 @@
--- CS 440 Spring 2020 Homework 6
--- (Skeleton with solution commented out)
---
--- Recursive descent parser using bind/fails.
--- Includes function calls f(x), f(x,x) [one or more arguments]
---
+--Mark Gameng CS 440
 
--- module <fill in> where
 import Data.Char
 import Data.List
+import Data.Maybe
+
+--types/structures
+type Variable = String
+type Identifier = String
+
+data Term = 
+    VAR Variable 
+    | ID Identifier 
+    | CONST Int 
+    | FUNCTION Identifier [Term] -- f(arg1,arg2,...)
+    deriving (Show, Read, Eq)
+
+type Equation = (Term, Term) -- expr = expr
+type Problem = [Equation] -- so can have multiple equations
+type Substitution = (Variable, Term)
+type Parser1 a = String -> Maybe(a, String)
+
+solve :: String -> String
+solve prob = "test"
+
+parse :: String -> Maybe Problem -- is the type right
+parse input = case parse_problem input of
+    Just(problem, input) -> parse_parse problem -- returns a [Equation]
+    Nothing -> Nothing
+
+parse_parse :: Ptree -> Maybe Problem
+parse_parse input = Nothing
+
+unify :: [Equation] -> Maybe [Substitution] --hmmmm
+unify equations = Nothing
+
+substitute :: Identifier -> Int -> Identifier -> Identifier -- da fuk
+substitute exp1 var exp2 = "X"
 
 -- Language
 --
+--Problem ... {Equations}
+-- ....
 -- Expr   -> Term \+ Ttail
 -- Ttail  -> \+ Term Ttail | empty
 -- Term   -> Factor Ftail
 -- Ftail  -> \* Factor Ftail | empty
--- Factor -> Id_or_Call | Paren | Negative
+-- Factor -> Id_or_Call | Paren | Negative | Constant
 -- Paren  -> \( Expr \)
 -- Negative -> \- Factor
 --
@@ -28,12 +58,16 @@ import Data.List
 data Ptree =
     Empty                           -- The empty parse tree
     | Id String                     -- Identifiers
+    | Var String                    -- variables that can be changed -- capitalized
     | Call String [Ptree]           -- Function call, list of arguments
     | Exp Ptree Ptree               -- For Term/Term_tail
     | Term Ptree Ptree              -- For Factor/Factor_Tail
     | Ttail Symbol Ptree Ptree      -- for Symbol Term Ttail
     | Ftail Symbol Ptree Ptree      -- Symbol Factor Ftail
     | Negative Ptree                -- For - factor
+    | Equation Ptree Symbol Ptree   -- For expr = expr
+    | Problem Ptree Ptree           -- problem
+    | Const Int                     --constant
     deriving (Eq, Show, Read)
 
 --
@@ -50,7 +84,10 @@ lparen = '(' :: Symbol
 minus  = '-' :: Symbol
 plus   = '+' :: Symbol
 rparen = ')' :: Symbol
-star   = '*' :: Symbol 
+star   = '*' :: Symbol
+lbracket = '{' :: Symbol
+rbracket = '}' :: Symbol
+equal = '=' :: Symbol
 
 -- A generic parser returns Maybe a value and leftover input.
 -- Most of the parsers are of type Parser Ptree.
@@ -59,6 +96,37 @@ type Parser t = Input -> Maybe (t, Input)
 
 
 ---------- PARSERS --------------------------------------------------
+--Problem -> {Equations}
+--Equations -> Equation EquationTail
+--EquationTail -> \, Equations | Empty
+--Equation -> Expr = Expr
+parse_problem :: Parser Ptree
+parse_problem input =
+    next_symbol lbracket input          `bind` (\ (_, input1) ->
+    parse_equations input1              `bind` (\ (equations, input2) ->
+    next_symbol rbracket input2         `bind` (\ (_, input3) ->
+    Just (equations, input3))))
+
+parse_equations :: Parser Ptree
+parse_equations input = 
+    parse_equation input            `bind` (\ (equation, input1) ->
+    parse_equationTail input1       `bind` (\ (equationTail, input2) ->
+    Just (make_tail Problem equation equationTail, input2)))
+
+parse_equationTail :: Parser Ptree
+parse_equationTail input =
+    next_symbol comma input             `bind` (\ (_, input1) ->
+    parse_equations input1              `bind` (\ (equations, input2) ->
+    Just (equations, input2)))
+                                        `fails` (\() ->
+    parse_empty input)
+
+parse_equation :: Parser Ptree
+parse_equation input =
+    parse_E input               `bind` (\ (expr, input1) ->
+    next_symbol equal input1    `bind` (\ (equals, input2) ->
+    parse_E input2              `bind` (\ (expr1, input3) ->
+    Just (Equation expr equals expr1, input3))))
 --
 -- For an expression, we look for a term and term_tail. If
 -- the term tail is empty, we just return the underlying
@@ -104,7 +172,7 @@ parse_Ttail input =
 -- A factor is an identifier or parenthesized expression or
 -- a negative factor.
 --
--- Grammar rule: F -> id | ( E )
+-- Grammar rule: F -> id | ( E ) | Negative
 --
 parse_F :: Parser Ptree
 parse_F input =
@@ -135,10 +203,15 @@ parse_Ftail input =
 parse_id_or_call :: Parser Ptree
 parse_id_or_call input =
     getId (dropSpaces input)        `bind`  (\ (idstring, input1) ->
-        parse_arguments input1      `bind`  (\ (argtail, input2) ->
-        Just (Call idstring argtail, input2) )
+    parse_arguments input1          `bind`  (\ (argtail, input2) ->
+    Just (Call idstring argtail, input2) )
                                     `fails` (\ () ->
-        Just (Id idstring, input1) ))
+    Just (Id idstring, input1) ))   `fails` (\ () ->
+    getVar (dropSpaces input)       `bind` (\ (varString, input3) ->
+    parse_arguments input3          `bind` (\ (argtail1, input4) ->
+    Just (Call varString argtail1, input4))
+                                    `fails` (\() ->
+    Just (Var varString, input3))))
 
 
 -- A set of function arguments is a parenthesized, comma-separated
@@ -250,7 +323,16 @@ make_tail build ptree tailtree =
 getId :: Parser String
 getId [] = Nothing
 getId (h:input1)
-    | isLetter h =
+    | (isLetter h && isLower h) || isDigit h =
+        let (idtail, input2) = span (\c -> isAlphaNum c || c == '_') input1
+        in Just (h:idtail, input2)
+    | otherwise = Nothing
+
+--similar to getId but getVar
+getVar :: Parser String
+getVar [] = Nothing
+getVar (h:input1)
+    | isLetter h && isUpper h =
         let (idtail, input2) = span (\c -> isAlphaNum c || c == '_') input1
         in Just (h:idtail, input2)
     | otherwise = Nothing
@@ -258,3 +340,4 @@ getId (h:input1)
 -- drop initial whitespace
 --
 dropSpaces x = dropWhile isSpace x
+
