@@ -25,13 +25,11 @@ p6 = "{f(f(f(f(a,Z),Y),X),W) = f(W,f(X,f(Y,f(Z,a))))}"
 -- Arguments  -> \( Expr Argtail \)
 -- Argtail    -> \, Expr Argtail | empty
 
--- The parse tree structure follows the grammar structure
---
 type Equation = (Ptree, Ptree) -- expr = expr
 type Problem = [Equation] -- so can have multiple equations
 type Substitution = Equation -- Var -> ...
 
-solve :: String ->IO ()
+solve :: String -> IO () -- IO() so i can use putStr and add line breaks
 solve problem = 
     do
         let
@@ -149,12 +147,17 @@ substituteAll problem sub = map (\x -> substitute x sub) problem
 substituteAllSub :: [Substitution] -> Substitution -> [Substitution]
 substituteAllSub problem sub = map (\x -> substitute x sub) problem
 
---FIX FOR FUNCTIONS
 getStrings :: Ptree -> [Char]
 getStrings (Var out) = out
 getStrings (Id out) = out
 -- need to get function shits
---getStrings (Call out tree) = map getStrings tree
+getStrings (Call out tree) = out ++ "(" ++ concat (intersperse "," (map getStrings tree)) ++ ")"
+getStrings (Exp tree1 tree2) = getStrings tree1 ++ getStrings tree2
+getStrings (Term tree1 tree2) = getStrings tree1 ++ getStrings tree2
+--Ttail, Ftail, Negative, Equation, Problem
+getStrings (Ttail symbol tree1 tree2) = show symbol ++ getStrings tree1 ++ getStrings tree2
+getStrings (Ftail symbol tree1 tree2) = show symbol ++ getStrings tree1 ++ getStrings tree2
+getStrings (Negative tree) = "-" ++ getStrings tree
 getStrings _ = ""
 
 -- for checking equality between equations

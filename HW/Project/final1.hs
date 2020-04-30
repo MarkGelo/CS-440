@@ -1,37 +1,19 @@
 import Data.Char
 import Data.List
-import Control.Monad (mfilter)
 
-p1 = "{X=Y,Y=3}" --Y=3,X=3
-p2 = "{X=1,X=3}" --fails tries to unify 1 and 3
-p3 = "{f(a,Y)=f(X,b),c=Z}" --Z=c,Y=b,X=a
-p4 = "{f(X)=g(Y)}" --fails different function names
-p5 = "{f(X,Y)=f(X)}" --fails, different # of args'
-p6 = "{f(f(f(f(a,Z),Y),X),W) = f(W,f(X,f(Y,f(Z,a))))}"
+-- Mark Gameng
+-- CS 440 Programming Languages and Translators
 
--- Language
---
---Problem ... {Equations}
--- ....
--- Expr   -> Term \+ Ttail
--- Ttail  -> \+ Term Ttail | empty
--- Term   -> Factor Ftail
--- Ftail  -> \* Factor Ftail | empty
--- Factor -> Id_or_Call | Paren | Negative | Constant
--- Paren  -> \( Expr \)
--- Negative -> \- Factor
---
--- Id_or_Call -> Id (Arguments | empty)
--- Arguments  -> \( Expr Argtail \)
--- Argtail    -> \, Expr Argtail | empty
+-- TEST CASES
+p1 = "{X=Y,Y=3}" --Y -> 3,X -> 3
+p2 = "{X=1,X=3}" --fails tries to unify 1 and 3, const/id error
+p3 = "{f(a,Y)=f(X,b),c=Z}" --Z -> c,Y -> b,X -> a
+p4 = "{f(X)=g(Y)}" --fails different function names, func error
+p5 = "{f(X,Y)=f(X)}" --fails, different # of args', func error
+p6 = "{f(f(f(f(a,Z),Y),X),W) = f(W,f(X,f(Y,f(Z,a))))}" -- W -> f(f(f(a,Z),Y),X), X -> f(f(a,Z),Y), Y -> f(a,Z), Z -> a
 
--- The parse tree structure follows the grammar structure
---
-type Equation = (Ptree, Ptree) -- expr = expr
-type Problem = [Equation] -- so can have multiple equations
-type Substitution = Equation -- Var -> ...
-
-solve :: String ->IO ()
+-- solve function
+solve :: String -> IO () -- IO() so i can use putStr and add line breaks
 solve problem = 
     do
         let
@@ -44,7 +26,30 @@ solve problem =
                         _ -> putStr "Error"
         string
 
---print , need to use show for extra credit tf?
+-- parse a string and returns a problem
+parse :: String -> Problem
+parse input = case parse_problem input of
+    Just (parsing, "", eqs) -> eqs
+    _ -> []
+
+-- unify calls on unify1 helper function with initial [] subs
+unify :: Problem -> Maybe (Problem, [Substitution])
+unify problem = unify1 (problem, [])
+
+-- substitute function
+substitute :: Equation -> Substitution -> Equation
+substitute equation sub =
+    do
+        let
+            subVar = fst sub
+            subChange = snd sub
+            eqLeft = fst equation
+            eqRight = snd equation
+            newLeft = if eqLeft == subVar then subChange else eqLeft
+            newRight = if eqRight == subVar then subChange else eqRight -- need parse through functions otherwise wont substitute the var in side args, also expr if i want
+        (newLeft, newRight)
+
+-- pprint
 pprint :: (Problem, [Substitution]) -> String
 pprint (pr, sub) =
     do
@@ -66,34 +71,26 @@ pprint (pr, sub) =
             out = remaining ++ " using " ++ prettySub
         out
 
-printProblem :: Problem -> String
-printProblem [] = ""
-printProblem prob =
-    do
-        let
-            temp = prob !! 0
-            tempLeft = fst temp
-            tempRight = snd temp
-            left = getStrings tempLeft
-            right = getStrings tempRight
-        left ++ " = " ++ right ++ ", " ++ printProblem (drop 1 prob)
+-- substitute helper functions
+substituteAll :: Problem -> Substitution -> Problem
+substituteAll problem sub = map (\x -> substitute x sub) problem
 
-printSub :: [Substitution] -> String
-printSub [] = ""
-printSub sub =
-    do
-        let
-            temp = sub !! 0
-            tempLeft = fst temp
-            tempRight = snd temp
-            left = getStrings tempLeft
-            right = getStrings tempRight
-        left ++ " -> " ++ right ++ ", " ++ printSub (drop 1 sub)
+substituteAllSub :: [Substitution] -> Substitution -> [Substitution]
+substituteAllSub problem sub = map (\x -> substitute x sub) problem
 
+-- get strings from a Ptree basically unparses
+getStrings :: Ptree -> [Char]
+getStrings (Var out) = out
+getStrings (Id out) = out
+getStrings (Call out tree) = out ++ "(" ++ concat (intersperse "," (map getStrings tree)) ++ ")"
+getStrings (Exp tree1 tree2) = getStrings tree1 ++ getStrings tree2
+getStrings (Term tree1 tree2) = getStrings tree1 ++ getStrings tree2
+getStrings (Ttail symbol tree1 tree2) = show symbol ++ getStrings tree1 ++ getStrings tree2
+getStrings (Ftail symbol tree1 tree2) = show symbol ++ getStrings tree1 ++ getStrings tree2
+getStrings (Negative tree) = "-" ++ getStrings tree
+getStrings _ = ""
 
-unify :: Problem -> Maybe (Problem, [Substitution])
-unify problem = unify1 (problem, [])
-
+-- unify helper functions
 unify1 :: (Problem, [Substitution]) -> Maybe (Problem, [Substitution])
 unify1 problems = 
     do
@@ -101,6 +98,7 @@ unify1 problems =
         problemArr = fst problems -- get Problem
         sub = snd problems -- get Substitution
         --problems1 = checkEquality problemArr -- reduces if already ahve equality in equations
+    -- if has an error in substitution, then returns the remaining problem
     if (Id "Const/Id", Id "Error") `elem` sub || (Id "Func", Id "Error") `elem` sub || (Id "Exp", Id "Error") `elem` sub then Just (problemArr, sub)
     else (if length problemArr > 0 then unify2(problemArr, sub) else Just (problemArr, sub))
 
@@ -126,36 +124,30 @@ unify2 problems =
                         then unify1 ((drop 1 p') ++ zip (getFuncA leftSide) (getFuncA rightSide), sub) else Just (p', sub ++ [(Id "Func", Id "Error")]))
                     else Just (p', sub ++ [(Id "Exp", Id "Error")])))
 
---substitute function - takes in an equation and applies a substitution
---ex substitute (X = 3) (X -> 3)
---returns 3 = 3
---FIX FOR FUNCTIONS
-substitute :: Equation -> Substitution -> Equation
-substitute equation sub =
+-- print helper functions for pprint
+printProblem :: Problem -> String
+printProblem [] = ""
+printProblem prob =
     do
         let
-            subVar = fst sub
-            subChange = snd sub
-            eqLeft = fst equation
-            eqRight = snd equation
-            newLeft = if eqLeft == subVar then subChange else eqLeft
-            newRight = if eqRight == subVar then subChange else eqRight -- need parse through functions otherwise wont substitute the var in side args, also expr if i want
-        (newLeft, newRight)
+            temp = prob !! 0
+            tempLeft = fst temp
+            tempRight = snd temp
+            left = getStrings tempLeft
+            right = getStrings tempRight
+        left ++ " = " ++ right ++ ", " ++ printProblem (drop 1 prob)
 
---substitutes all equations in the problem
-substituteAll :: Problem -> Substitution -> Problem
-substituteAll problem sub = map (\x -> substitute x sub) problem
-
-substituteAllSub :: [Substitution] -> Substitution -> [Substitution]
-substituteAllSub problem sub = map (\x -> substitute x sub) problem
-
---FIX FOR FUNCTIONS
-getStrings :: Ptree -> [Char]
-getStrings (Var out) = out
-getStrings (Id out) = out
--- need to get function shits
---getStrings (Call out tree) = map getStrings tree
-getStrings _ = ""
+printSub :: [Substitution] -> String
+printSub [] = ""
+printSub sub =
+    do
+        let
+            temp = sub !! 0
+            tempLeft = fst temp
+            tempRight = snd temp
+            left = getStrings tempLeft
+            right = getStrings tempRight
+        left ++ " -> " ++ right ++ ", " ++ printSub (drop 1 sub)
 
 -- for checking equality between equations
 -- for example X = 3, Y = Y, 3 = 3
@@ -163,24 +155,7 @@ getStrings _ = ""
 checkEquality :: Problem -> Problem
 checkEquality = filter (\(leftSide, rightSide) -> leftSide /= rightSide)
 
-
--- cant do this shit unify1 (problemListmin1, sub ++ [(es1, exp1)])
---need to update orig problem array with updated substitution shit on all elements
-
---GO DO THE ALGORITHM WITH 2 EQUATIONS -- ONCE IT RETURNS A SUBSTITUTION, UPDATE THE EQUATIONS AND REDUCE IF POSSIBLE - THINK ONLY FOR FIRST PART
---WHAT IF IN THE SECOND PART WHERE IT ITERATES OVER THE ELEMENTS- SHOULD I UPDATE AECH TIME IT FINDS A SUBSTITION? I THINK SO
---BUT WHEN ONLY LEFT TO 1 EQUATION ,CALL ANOTHER METHOD THAT HANDLES THAT
-
---MAYBE WHEN FINDS A SUBSTITUTE, CALL THE SUBSTITUTE METHOD WHICH RETURNS THE SUBSTIUTION RESULT WHAT??????????
-
---WHEN IT FIND A SUBSTITUTION, SUBTITUTE IT TO THE PROBLEM AND THEN CALL A FUNCTION THAT CHECKS EACH EQUATION AND IF IT CAN BE TAKEN OUT, THE NCALL UNIFY ON THOSE PROBLEM
-
---AT FIRST CHECK EACH EQUATION FOR EQUALITY TO TAKE OUT ALREADY SOLVED EQUATIONS, THEN CHECK EACH EQUATION
---IF IT CAN BE SUBSTITUTED AND SOLVED ALREADY INDIVIDUALLY - LIKE IF X = 3, THAT CAN BE SOLVED ALREADY WITH X -> 3
---THEN AFTER CHECKS ALL THAT, USE UNIFY FUNCTION FOR 2 EQUATIONS AND SOLVE FROM THERE. HMMMMMMMMMMM
-test :: (Ptree, Ptree) -> Bool
-test _ = False
-
+-- functions that check if var, id, or func
 isVar :: Ptree -> Bool
 isVar (Var _) = True
 isVar _ = False
@@ -201,10 +176,27 @@ getFuncN (Call string _) = string
 getFuncA :: Ptree -> [Ptree]
 getFuncA (Call string args) = args
 
-parse :: String -> Problem
-parse input = case parse_problem input of
-    Just (parsing, "", eqs) -> eqs
-    _ -> []
+
+--types
+type Equation = (Ptree, Ptree) -- expr = expr
+type Problem = [Equation] -- so can have multiple equations
+type Substitution = Equation -- Var -> ...
+
+-- Language
+--
+--Problem ... {Equations}
+-- ....
+-- Expr   -> Term \+ Ttail
+-- Ttail  -> \+ Term Ttail | empty
+-- Term   -> Factor Ftail
+-- Ftail  -> \* Factor Ftail | empty
+-- Factor -> Id_or_Call | Paren | Negative | Constant
+-- Paren  -> \( Expr \)
+-- Negative -> \- Factor
+--
+-- Id_or_Call -> Id (Arguments | empty)
+-- Arguments  -> \( Expr Argtail \)
+-- Argtail    -> \, Expr Argtail | empty
 
 ----------- FROM HW -------------------------------------------------------------------------
 data Ptree =
